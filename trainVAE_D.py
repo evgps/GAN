@@ -11,14 +11,18 @@ from Constant import Constants
 from load_data import StyleData
 from PreTrainDs import indexData2variable
 import time
+import tqdm
+from time import sleep
+torch.set_default_tensor_type(torch.cuda.FloatTensor)
 
 
-def trainVAE_D(epoches,batch_size,data,ds_model,ds_emb,pretrainD=False):
+def trainVAE_D(epoches,batch_size,data,ds_model,ds_emb,gan_path,style_path,pretrainD=False):
     
-    gan = torch.load(sys.argv[6])
+    gan = torch.load(gan_path)
     gan = gan.cuda()
+    gan.train(True)
     style = StyleData()
-    style.load(sys.argv[5])
+    style.load(style_path)
     const = Constants(style.n_words)
     optimizer = optim.Adam(gan.parameters(),lr=const.Lr)
     lamda1 = 1
@@ -27,28 +31,28 @@ def trainVAE_D(epoches,batch_size,data,ds_model,ds_emb,pretrainD=False):
     cross_entropy = nn.CrossEntropyLoss()
 
     # init the state of some model
-    ds_model.train(False)
-    ds_emb.train(False)
+    ds_model.train(True)
+    ds_emb.train(True)
 
     
     train_data = indexData2variable(data)
     train_data = build2pairs(train_data)
     
-    
-    print len(train_data)
     for i in range(epoches):
-        print "epoches:\t", i
+        print(("epoches:\t", i))
         if pretrainD:
-            print "trainning Discriminator.........."
+            print("trainning Discriminator..........")
         else :
-            print "trainning Generator.............."
-        
+            print("trainning Generator..............")
+        sys.stdout.flush()
         stime = time.time()
         
         shuffleData(train_data)
-        
+        print(len(train_data))
+        sys.stdout.flush()
         count = 0
-        while count < len(train_data):
+        # for count in range(int(len(train_data))):
+        while count < int(len(train_data)-batch_size):
             tempdata = train_data[count:count+batch_size]
             
             if tempdata == []:
@@ -66,7 +70,9 @@ def trainVAE_D(epoches,batch_size,data,ds_model,ds_emb,pretrainD=False):
             # before we let the D lead the gradient the D model must be strong enough
             if not pretrainD:
                 for seqs in tempdata:
-                    dic = gan(seqs[0],seqs[1],D_train=False)
+                    seqs[0] = seqs[0].cuda()
+                    seqs[1] = seqs[1].cuda()
+                    dic = gan(seqs[0],seqs[1],D_train=True)
 
                     Lrec = cross_entropy(dic['x1_hat_noT'],seqs[0])+cross_entropy(dic['x2_hat_noT'],seqs[1])
                     Lcyc = cross_entropy(dic['x1_bar_noT'],seqs[0])+cross_entropy(dic['x2_bar_noT'],seqs[1])
@@ -77,7 +83,7 @@ def trainVAE_D(epoches,batch_size,data,ds_model,ds_emb,pretrainD=False):
                     Loss += Lrec + lamda2*Lcyc + lamda3*Ldis - lamda1*Ladv
             else:
                 for seqs in tempdata:
-                    dic = gan(seqs[0],seqs[1],Ez_train=False,Ey_train=False,G_train=False,
+                    dic = gan(seqs[0],seqs[1],Ez_train=True,Ey_train=True,G_train=True,
                               Lcyc=False, Lrec=False, Ldis = False)
                     
                     Ladv = cross_entropy(dic['D_x1_wl'],Variable(torch.LongTensor([0]).cuda()))+ cross_entropy(dic['D_x2_hat'],Variable(torch.LongTensor([1]).cuda()))
@@ -87,8 +93,10 @@ def trainVAE_D(epoches,batch_size,data,ds_model,ds_emb,pretrainD=False):
             
             Loss.backward()
             optimizer.step()
-            
-            
+            if count%100 == 0:
+                print('{} / {}'.format(count,len(train_data)))
+                sys.stdout.flush()
+
             
         if i%10 == 0 or i:
             torch.save(gan, "./Model/gan.pkl")
@@ -105,7 +113,9 @@ def trainVAE_D(epoches,batch_size,data,ds_model,ds_emb,pretrainD=False):
             
             
         etime = time.time()
-        print "cost time \t%.2f mins" % ((etime - stime)/60)
+        print(("cost time \t%.2f mins" % ((etime - stime)/60)))
+        sys.stdout.flush()
+
     torch.save(gan, "./Model/gan.pkl")
             
                 
@@ -129,7 +139,7 @@ def shuffleData(train_data):
 def get_d_acc(gan, train_data):
     
     acc = 0
-    min_len = len(train_data)/100
+    min_len = int(len(train_data)/100)
     train_data = train_data[:min_len]
     for i in range(min_len):
         dic = gan(train_data[i][0],train_data[i][1],Ez_train=False,Ey_train=False,G_train=False,
@@ -139,7 +149,7 @@ def get_d_acc(gan, train_data):
         if dic['D_x2_hat'].topk(1)[1].cpu().data.numpy() == 1:
             acc += 1
     
-    print "acc:\t\t %.4f" % (acc/(min_len*2.0))
+    print(("acc:\t\t %.4f" % (acc/(min_len*2.0))))
     return acc/(min_len*2.0)
 
     
@@ -176,4 +186,4 @@ if __name__ == "__main__":
 
     trainVAE_D(epoches,batch_size,train_data,ds,ds_emb,pretrainD)
     
-    print "finished trainning......................."
+    print("finished trainning.......................")

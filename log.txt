@@ -1,0 +1,66 @@
+('epoches:\t', 0)
+trainning Discriminator..........
+138091
+100 / 138091
+200 / 138091
+acc:		 1.0000
+cost time 	20.24 mins
+('epoches:\t', 1)
+trainning Generator..............
+138091
+100 / 138091
+200 / 138091
+acc:		 0.5000
+cost time 	42.05 mins
+('epoches:\t', 2)
+trainning Discriminator..........
+138091
+100 / 138091
+200 / 138091
+acc:		 0.5000
+cost time 	9.35 mins
+('epoches:\t', 3)
+trainning Discriminator..........
+138091
+100 / 138091
+200 / 138091
+acc:		 0.5000
+cost time 	9.24 mins
+('epoches:\t', 4)
+trainning Discriminator..........
+138091
+100 / 138091
+200 / 138091
+acc:		 0.5000
+cost time 	9.12 mins
+('epoches:\t', 5)
+trainning Discriminator..........
+138091
+100 / 138091
+200 / 138091
+acc:		 0.5000
+cost time 	9.07 mins
+('epoches:\t', 6)
+trainning Discriminator..........
+138091
+100 / 138091
+200 / 138091
+acc:		 0.5000
+cost time 	9.00 mins
+('epoches:\t', 7)
+trainning Discriminator..........
+138091
+100 / 138091
+200 / 138091
+acc:		 0.5000
+cost time 	8.83 mins
+('epoches:\t', 8)
+trainning Discriminator..........
+138091
+100 / 138091
+200 / 138091
+acc:		 0.5000
+cost time 	8.76 mins
+('epoches:\t', 9)
+trainning Discriminator..........
+138091

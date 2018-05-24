@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
+torch.set_default_tensor_type(torch.cuda.FloatTensor)
 
 import numpy as np
 
@@ -62,7 +63,6 @@ class DsModel(nn.Module):
         for outputs in convs_outputs:
             max_pools_outputs.append(F.max_pool2d(outputs, kernel_size=(outputs.size()[2], 1)))
             # [2] is the size of high
-
         flatten = torch.cat(max_pools_outputs, dim=1).view(x.size()[0], -1)
         return self.softmax(self.relu(self.linear_out(self.drop(self.relu(self.linear(flatten))))))
 
@@ -79,7 +79,7 @@ class EzModel(nn.Module):
         super(EzModel, self).__init__()
         self.hidden_size = hidden_size
 
-        self.gru = nn.GRU(embedding_size, hidden_size)
+        self.gru = nn.GRU(embedding_size, hidden_size).cuda()
         # the GRU's output is special, 'hidden_out' of every time step excatly
         self.relu = nn.ReLU()
 
@@ -112,9 +112,9 @@ class EyModel(nn.Module):
         self.x2_style_flag = 1
         # we define the y2 style's flag is 1 and is x's index is 1 return y*
 
-        self.convs = nn.ModuleList([])
+        self.convs = nn.ModuleList([]).cuda()
         for width in kind_filters:
-            self.convs.append(nn.Conv2d(in_channels, num_filters, (width, embedding_size)))
+            self.convs.append(nn.Conv2d(in_channels, num_filters, (width, embedding_size)).cuda())
 
         self.relu = nn.ReLU()
 
@@ -134,9 +134,10 @@ class EyModel(nn.Module):
 
         max_pools_outputs = []
         for outputs in convs_outputs:
-            max_pools_outputs.append(F.max_pool2d(outputs, kernel_size=(outputs.size()[2], 1)))
-            
-        y1_style = torch.cat(max_pools_outputs, dim=1).view(x.size()[0], -1)
+            max_pools_outputs.append(F.max_pool2d(outputs, kernel_size=(outputs.size()[2], 1)).view((-1,)))
+        
+        # print(max_pools_outputs)        
+        y1_style = torch.cat(max_pools_outputs).view(x.size()[0], -1)
         return self.relu(y1_style)
 
     def init_style(self):
@@ -256,17 +257,18 @@ class GANModel(nn.Module):
         self.max_len = max_len
         self.min_len = min_len
         
-        self.Ez = EzModel(embedding_size, content_represent)  # hidden_size is the content_represent
+        self.Ez = EzModel(embedding_size, content_represent).cuda()  # hidden_size is the content_represent
         # content_represent == conten_represent
-        self.Ey = EyModel(1, Ey_num_filters, Ey_filters, embedding_size)
+        self.Ey = EyModel(1, Ey_num_filters, Ey_filters, embedding_size).cuda()
         # style_represent == Ey_num_filters * Len(Ey_filters)
-        self.G = GModel(content_represent + self.style_represent, n_vocab, embedding_size, temper)
-        self.D = DModel(D_filters, D_num_filters, 1, content_represent + self.style_represent)
+        self.G = GModel(content_represent + self.style_represent, n_vocab, embedding_size, temper).cuda()
+        self.D = DModel(D_filters, D_num_filters, 1, content_represent + self.style_represent).cuda()
         
         
         self.embedding = Embed(n_vocab, embedding_size)
         self.embedding = self.embedding.cuda()
         self.go = self.embedding(Variable(torch.LongTensor([0]).cuda()))
+        self.go = self.go.cuda()
 
     def forward(self, x1, x2, Ez_train=True,
                 G_train=True,
@@ -319,8 +321,8 @@ class GANModel(nn.Module):
         hidden = self.Ez.init_hidden()
 
         if Lrec or Lcyc or Ladv:
-            outputs, z1 = self.Ez(embedd_x1.unsqueeze(1), hidden)
-            outputs, z2 = self.Ez(embedd_x2.unsqueeze(1), hidden)
+            outputs, z1 = self.Ez(embedd_x1.unsqueeze(1).cuda(), hidden)
+            outputs, z2 = self.Ez(embedd_x2.unsqueeze(1).cuda(), hidden)
             # and the z1, z2's shape is 1 * 1 * hidden_size
 
         x1_seq_len = x1.size()[0]
@@ -371,6 +373,7 @@ class GANModel(nn.Module):
         x_hats = []
         x_hats_noT = []
         hiddens = []
+        self.go = self.go.cuda()
         x_hat, x_hat_noT, hidden = self.G(self.go.view(1, 1, -1),
                                           torch.cat([z.view(1, -1), y], dim=-1).view(1, 1, -1))
         x_hats.append(x_hat)
