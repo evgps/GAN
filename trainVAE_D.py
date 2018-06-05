@@ -7,6 +7,7 @@ import torch.optim as optim
 from torch.autograd import Variable
 import numpy as np
 import random 
+from ModelDefine import GANModel
 from Constant import Constants
 from load_data import StyleData
 from PreTrainDs import indexData2variable
@@ -15,10 +16,24 @@ import tqdm
 from time import sleep
 torch.set_default_tensor_type(torch.cuda.FloatTensor)
 
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        nn.init.xavier_uniform(m.weight)
+        nn.init.constant(m.bias, 0)
 
 def trainVAE_D(epoches,batch_size,data,ds_model,ds_emb,gan_path,style_path,pretrainD=False):
     
     gan = torch.load(gan_path)
+    # gan.apply(weights_init) # apply weight init
+
+        #     style_represent is the dim we choose to represent the style
+        # content_represent is the dim we choose to represent the content
+        # D_filters is a list like this [1,2,3,4]
+        # D_num_filters is the the filters number we want to use for each window size
+        # Ey_filters
+    # gan = GANModel(style_represent=500, content_represent=250, D_filters=[2,3,4,5,6], D_num_filters=100, Ey_filters=[1,2,3,4,5],
+    #              Ey_num_filters=100, embedding_size=250, n_vocab=8981, temper=0.0001, max_len=40, min_len = 6, style_path=style_path)
     gan = gan.cuda()
     gan.train(True)
     style = StyleData()
@@ -52,7 +67,7 @@ def trainVAE_D(epoches,batch_size,data,ds_model,ds_emb,gan_path,style_path,pretr
         sys.stdout.flush()
         count = 0
         # for count in range(int(len(train_data))):
-        while count < int(len(train_data)-batch_size):
+        while count < int(10000-batch_size):
             tempdata = train_data[count:count+batch_size]
             
             if tempdata == []:
@@ -83,32 +98,30 @@ def trainVAE_D(epoches,batch_size,data,ds_model,ds_emb,gan_path,style_path,pretr
                     Loss += Lrec + lamda2*Lcyc + lamda3*Ldis - lamda1*Ladv
             else:
                 for seqs in tempdata:
-                    dic = gan(seqs[0],seqs[1],Ez_train=True,Ey_train=True,G_train=True,
-                              Lcyc=False, Lrec=False, Ldis = False)
+                    dic = gan(seqs[0],seqs[1],Ez_train=True,Ey_train=True,G_train=True, Lcyc=False, Lrec=False, Ldis = False)
                     
                     Ladv = cross_entropy(dic['D_x1_wl'],Variable(torch.LongTensor([0]).cuda()))+ cross_entropy(dic['D_x2_hat'],Variable(torch.LongTensor([1]).cuda()))
                     Loss += lamda1*Ladv
             
 #             print "loss \t\t%.3f" %(Loss.data.cpu().numpy()[0])
             
-            Loss.backward()
+            Loss.backward(retain_graph=True)
             optimizer.step()
             if count%100 == 0:
                 print('{} / {}'.format(count,len(train_data)))
                 sys.stdout.flush()
 
             
-        if i%10 == 0 or i:
-            torch.save(gan, "./Model/gan.pkl")
-                
-            gan.eval()
-            acc = get_d_acc(gan, train_data)
-            gan.train(True)
+        torch.save(gan, "./Model/bitch_gan2.pkl")
             
-            if acc > 0.8:
-                pretrainD = False
-            if acc < 0.6:
-                pretrainD = True
+        gan.eval()
+        acc = get_d_acc(gan, train_data)
+        gan.train(True)
+        
+        if acc > 0.8:
+            pretrainD = False
+        if acc < 0.6:
+            pretrainD = True
             
             
             
@@ -116,7 +129,7 @@ def trainVAE_D(epoches,batch_size,data,ds_model,ds_emb,gan_path,style_path,pretr
         print(("cost time \t%.2f mins" % ((etime - stime)/60)))
         sys.stdout.flush()
 
-    torch.save(gan, "./Model/gan.pkl")
+    torch.save(gan, "./Model/bitch_gan2.pkl")
             
                 
 def build2pairs(train_data):

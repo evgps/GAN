@@ -31,8 +31,8 @@ def train(epoches, batch_size, train_data):
             nowloss = getclfloss(train_data,ds,criterion)
             nowacc = getclfacc(train_data)
             
-            torch.save(ds,'./Model/Ds.pkl')
-            torch.save(embedding,'./Model/Ds_emb.pkl')
+            torch.save(ds,'./Model/Ds_pretrained.pkl')
+            torch.save(embedding,'./Model/Ds_emb_pretrained.pkl')
             
             ds.train()
             embedding.train()

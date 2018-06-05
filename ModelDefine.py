@@ -6,11 +6,11 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 torch.set_default_tensor_type(torch.cuda.FloatTensor)
-
+import time
 import numpy as np
 
 # there are four models need to be defined Ez, Ey, D, Ds(pre-trained)
-
+torch.cuda.init()
 class DsModel(nn.Module):
     """
     notes:
@@ -37,9 +37,12 @@ class DsModel(nn.Module):
         self.kind_filters = kind_filters
         self.num_filters = num_filters
 
-        self.convs = nn.ModuleList([])
-        for width in self.kind_filters:
-            self.convs.append(nn.Conv2d(num_in_channels, num_filters, (width, embedded_size)))
+        self.convs= nn.ModuleList([nn.Conv2d(num_in_channels, num_filters, (width, embedded_size)) for width in self.kind_filters])
+
+
+        # self.convs = nn.ModuleList([])
+        # for width in self.kind_filters:
+        #     self.convs.append(nn.Conv2d(num_in_channels, num_filters, (width, embedded_size)))
 
         self.linear = nn.Linear(num_filters * len(kind_filters), hidden_size)
         self.linear_out = nn.Linear(hidden_size, 2)
@@ -55,9 +58,12 @@ class DsModel(nn.Module):
         
         the outputs is the probability of x1 < X1
         """
-        convs_outputs = []
-        for convs in self.convs:
-            convs_outputs.append(convs(x))
+        # convs_outputs = []
+        # for convs in self.convs:
+        #     convs_outputs.append(convs(x))
+
+        convs_outputs= [convs(x) for convs in self.convs]
+
 
         max_pools_outputs = []
         for outputs in convs_outputs:
@@ -112,9 +118,12 @@ class EyModel(nn.Module):
         self.x2_style_flag = 1
         # we define the y2 style's flag is 1 and is x's index is 1 return y*
 
-        self.convs = nn.ModuleList([]).cuda()
-        for width in kind_filters:
-            self.convs.append(nn.Conv2d(in_channels, num_filters, (width, embedding_size)).cuda())
+        # self.convs = nn.ModuleList([]).cuda()
+        # for width in kind_filters:
+        #     self.convs.append(nn.Conv2d(in_channels, num_filters, (width, embedding_size)).cuda())
+
+        self.convs= nn.ModuleList([nn.Conv2d(in_channels, num_filters, (width, embedding_size)) for width in self.kind_filters])
+
 
         self.relu = nn.ReLU()
 
@@ -127,14 +136,25 @@ class EyModel(nn.Module):
         """
         if index == self.x2_style_flag:
             return self.y2_style
+        gay_convs_outputs = []
+        # torch.cuda.synchronize()
+        for gay_convs in self.convs:
 
-        convs_outputs = []
-        for convs in self.convs:
-            convs_outputs.append(convs(x))
+            # torch.cuda.synchronize()
+            y = gay_convs(x)
+            gay_convs_outputs.append(y)
+        # torch.cuda.synchronize()
 
-        max_pools_outputs = []
-        for outputs in convs_outputs:
-            max_pools_outputs.append(F.max_pool2d(outputs, kernel_size=(outputs.size()[2], 1)).view((-1,)))
+        # convs_outputs= [convs(x) for convs in self.convs]
+
+        max_pools_outputs= [F.max_pool2d(outputs, kernel_size=(outputs.size()[2], 1)).view((-1,)) for outputs in gay_convs_outputs]
+
+
+        # max_pools_outputs = []
+        # for outputs in convs_outputs:
+        #     max_pools_outputs.append(F.max_pool2d(outputs, kernel_size=(outputs.size()[2], 1)).view((-1,)))
+
+
         
         # print(max_pools_outputs)        
         y1_style = torch.cat(max_pools_outputs).view(x.size()[0], -1)
@@ -192,9 +212,12 @@ class DModel(nn.Module):
         self.kind_filters = kind_filters
         self.num_filters = num_filters
 
-        self.convs = nn.ModuleList([])
-        for w in self.kind_filters:
-            self.convs.append(nn.Conv2d(num_in_channels, num_filters, (w, width)))
+        # self.convs = nn.ModuleList([])
+        # for w in self.kind_filters:
+        #     self.convs.append(nn.Conv2d(num_in_channels, num_filters, (w, width)))
+
+        self.convs= nn.ModuleList([nn.Conv2d(num_in_channels, num_filters, (w, width)) for w in self.kind_filters]).cuda()
+
 
         self.linear = nn.Linear(num_filters * len(kind_filters), hidden_size)
         self.linear_out = nn.Linear(hidden_size, 2)
@@ -243,7 +266,7 @@ class GANModel(nn.Module):
     """
 
     def __init__(self, style_represent, content_represent, D_filters, D_num_filters, Ey_filters,
-                 Ey_num_filters, embedding_size, n_vocab, temper, max_len=40, min_len = 6):
+                 Ey_num_filters, embedding_size, n_vocab, temper, max_len=40, min_len = 6, style_path= './data/style.npy'):
         """
         style_represent is the dim we choose to represent the style
         content_represent is the dim we choose to represent the content
@@ -256,7 +279,8 @@ class GANModel(nn.Module):
         self.temper = temper
         self.max_len = max_len
         self.min_len = min_len
-        
+        self.style_data = np.load(style_path)
+
         self.Ez = EzModel(embedding_size, content_represent).cuda()  # hidden_size is the content_represent
         # content_represent == conten_represent
         self.Ey = EyModel(1, Ey_num_filters, Ey_filters, embedding_size).cuda()
@@ -330,6 +354,7 @@ class GANModel(nn.Module):
 
         if Lrec or Ladv:
             x1_hat, x1_hat_noT, x1_hat_hid = self.get_x_hat_hidden(z1, y1, x1_seq_len)
+            
             # x1_hat_hid is of no use
             x2_hat, x2_hat_noT, x2_hat_hid = self.get_x_hat_hidden(z2, y_star, x2_seq_len)
 
@@ -352,7 +377,9 @@ class GANModel(nn.Module):
             D_x2_hat = self.D(x2_hat_hid.view(1, 1, x2_hat_hid.size()[0], -1))
         # one question, do we need to return x1_hat and x2_hat x1_bar and x2_bar without enforcement?
 
-        return {'x1_hat': x1_hat,
+        return {'x1': embedd_x1,
+                'x2': embedd_x2,
+                'x1_hat': x1_hat,
                 'x1_hat_hid': x1_hat_hid,
                 'x1_hat_noT': x1_hat_noT,
                 'x2_hat': x2_hat,
@@ -394,3 +421,6 @@ class GANModel(nn.Module):
             hiddens.append(hidden)
 
         return torch.cat(x_hats), torch.cat(x_hats_noT), torch.cat(hiddens)  # cat in the first dim
+
+    def ind_to_words(self, ind_sent):
+    	return (' '.join([self.style_data[1][x] for x in ind_sent]))

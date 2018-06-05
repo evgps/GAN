@@ -36,6 +36,6 @@ def saveTrainData(filenames):
 
 
 if __name__ == "__main__":
-    filenames = ['./data/yelp/sentiment.train.0', './data/yelp/sentiment.train.1']
+    filenames = ['./data/sentiment.train.0', './data/sentiment.train.1']
     saveTrainData(filenames)
     print("finished")

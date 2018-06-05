@@ -14,7 +14,7 @@ from PreTrainDs import indexData2variable
 if __name__ == "__main__":
     # this is just to build the gan model and save the network to use later
     style = StyleData()
-    style.load('./data/style')
+    style.load('./data/style.npy')
     const = Constants(n_vocab=style.n_words)
     print('content_represent', const.Content_represent)
     print('D_filters', const.D_filters)
@@ -35,5 +35,5 @@ if __name__ == "__main__":
                    n_vocab=const.N_vocab,
                    style_represent=const.Style_represent,
                    temper=const.Temper)  # there are 9 parameters of a GAN
-    torch.save(gan, './Model/gan.pkl')
+    torch.save(gan, './Model/gan2.pkl')
     print('finished')

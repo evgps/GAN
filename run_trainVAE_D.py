@@ -2,6 +2,8 @@ import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"  
 os.environ["CUDA_VISIBLE_DEVICES"]="3" # change 0  with whatever card is available
 # os.environ["CUDA_LAUNCH_BLOCKING"]="1"
+# os.environ["CHAINER_DEBUG"]="1"
+
 import numpy as np
 from trainVAE_D import trainVAE_D
 import torch
@@ -27,12 +29,12 @@ booldic = {'yes':True,
             'NO':False,
             'No':False,}
 
-ds = torch.load('./Model/Ds.pkl').cuda()
-ds_emb = torch.load('./Model/Ds_emb.pkl').cuda()
+ds = torch.load('./Model/Ds_pretrained.pkl').cuda()
+ds_emb = torch.load('./Model/Ds_emb_pretrained.pkl').cuda()
 
 train_data = np.load('./data/trainDataOfIndex.npy')
-gan_path = './Model/gan.pkl'
-style_path = './data/style'
+gan_path = './Model/gan2.pkl'
+style_path = './data/style.npy'
 epoches = 30
 batch_size = 50
 pretrainD = False
